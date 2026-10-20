@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 from rapidfuzz import fuzz
 
 
 def extract_spans(
-    answer: str, chunks: List[Dict[str, Any]], max_per_source: int = 3
-) -> List[Dict[str, Any]]:
-    citations: List[Dict[str, Any]] = []
+    answer: str, chunks: list[dict[str, Any]], max_per_source: int = 3
+) -> list[dict[str, Any]]:
+    citations: list[dict[str, Any]] = []
     if max_per_source <= 0:
         return citations
 
-    counts_by_source: Dict[str, int] = {}
+    counts_by_source: dict[str, int] = {}
     for c in chunks:
         doc_id = c["doc_id"]
         if counts_by_source.get(doc_id, 0) >= max_per_source:

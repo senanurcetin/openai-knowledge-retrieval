@@ -1,0 +1,29 @@
+name: Verify per-source citation limits (offline)
+on:
+  push:
+    branches:
+      - verify/openai-retrieval-9-ci-20261021
+permissions:
+  contents: read
+jobs:
+  citations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install minimal offline testing dependencies
+        run: python -m pip install pytest rapidfuzz ruff
+      - name: Verify source-specific citation semantics
+        run: python -m pytest -q tests/test_extract_spans.py --disable-warnings --maxfail=1
+      - name: Ruff changed files
+        if: always()
+        run: python -m ruff check retrieval/citations.py tests/test_extract_spans.py

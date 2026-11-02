@@ -253,9 +253,11 @@ class OpenAIEvalsConfig(BaseModel):
 
 
 class RetrievalMetricsConfig(BaseModel):
-    top_k: int = 8
+    top_k: int = Field(default=8, ge=1)
+    # Disabled by default to avoid persisting retrieval metadata unexpectedly.
+    capture: bool = False
     compute: List[
-        Literal["hit@k", "recall@k", "MRR", "context_precision", "support_coverage"]
+        Literal["hit@k", "recall@k", "precision@k", "MRR", "context_precision", "support_coverage"]
     ] = Field(
         default_factory=lambda: [
             "hit@k",

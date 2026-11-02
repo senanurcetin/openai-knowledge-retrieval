@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from uuid import uuid4
 from typing import Any, Dict, List
 
 from rich import print as rprint
@@ -38,6 +39,10 @@ def run_evals(cfg: RootConfig, run_ablations: bool = False, config_path: str | N
     if mode == "user":
         if not cfg.evals.dataset_path:
             raise SystemExit("evals.dataset_path not configured for user mode")
+
+        # Correlate every artifact created by this invocation without
+        # persisting source content or depending on wall-clock uniqueness.
+        run_id = uuid4().hex
 
         # One answer-generation pass is enough for judging, EM/F1 and reports.
         # Traces are returned only through this ephemeral callback; the judge
@@ -104,9 +109,12 @@ def run_evals(cfg: RootConfig, run_ablations: bool = False, config_path: str | N
             judged, md_rows, pass_threshold=cfg.evals.thresholds.pass_rate
         )
         md_report["quality_summary"] = quality_summary
+        md_report["run_id"] = run_id
+        quality_summary["run_id"] = run_id
         # Shared aggregates in both reports guarantee the same one-pass data
         # underlies Markdown, HTML and machine-readable quality metadata.
         local_summary["quality_summary"] = quality_summary
+        local_summary["run_id"] = run_id
         report_dir = os.path.join("evals", "reports")
         os.makedirs(report_dir, exist_ok=True)
         with open(
@@ -123,6 +131,9 @@ def run_evals(cfg: RootConfig, run_ablations: bool = False, config_path: str | N
             report, coverage = summarize_captured_retrieval(
                 captured_examples, top_k=cfg.evals.retrieval_metrics.top_k
             )
+            coverage["run_id"] = run_id
+            if report is not None:
+                report["run_id"] = run_id
             report_dir = os.path.join("evals", "reports")
             os.makedirs(report_dir, exist_ok=True)
             coverage_path = os.path.join(report_dir, "retrieval_coverage.json")
@@ -142,6 +153,7 @@ def run_evals(cfg: RootConfig, run_ablations: bool = False, config_path: str | N
                     report_dir,
                     top_k=cfg.evals.retrieval_metrics.top_k,
                     reason="no_scored_examples",
+                    run_id=run_id,
                 )
                 rprint(
                     "[yellow]No retrieval scores produced[/yellow]: "
@@ -160,8 +172,10 @@ def run_evals(cfg: RootConfig, run_ablations: bool = False, config_path: str | N
                     report_dir,
                     top_k=cfg.evals.retrieval_metrics.top_k,
                     reason="capture_disabled",
+                    run_id=run_id,
                 )
                 coverage = {
+                    "run_id": run_id,
                     "status": "capture_disabled",
                     "total_examples": len(rows),
                     "scored_examples": 0,

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 from statistics import fmean
 from typing import Any
+from uuid import uuid4
 
 from evals.metrics.retrieval import compute_retrieval_metrics
 from evals.reporters.md import _safe_markdown
@@ -55,6 +56,7 @@ def evaluate_retrieval_jsonl(source: str | Path, top_k: int = 8) -> dict[str, An
     if not rows:
         raise ValueError("Retrieval input has no evaluation records")
     return {
+        "run_id": uuid4().hex,
         "num_examples": len(rows),
         "top_k": top_k,
         "averages": {
@@ -82,6 +84,8 @@ def write_retrieval_reports(report: dict[str, Any], output_dir: str | Path) -> t
         "| Metric | Average |",
         "|---|---:|",
     ]
+    if report.get("run_id"):
+        md_lines.insert(2, f"Run ID: `{_safe_markdown(report['run_id'])}`")
     for key in METRIC_KEYS:
         md_lines.append(f"| {key} | {report['averages'][key]:.3f} |")
     md_lines.extend([
@@ -104,7 +108,8 @@ def write_retrieval_reports(report: dict[str, Any], output_dir: str | Path) -> t
 
 
 def write_unavailable_retrieval_reports(
-    output_dir: str | Path, *, top_k: int, reason: str
+    output_dir: str | Path, *, top_k: int, reason: str,
+    run_id: str | None = None,
 ) -> tuple[Path, Path]:
     """Replace stale scores with an explicit unscored state.
 
@@ -133,18 +138,22 @@ def write_unavailable_retrieval_reports(
         "averages": None,
         "rows": [],
     }
+    if run_id is not None:
+        payload["run_id"] = run_id
     json_path.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    markdown_path.write_text(
+    markdown = (
         "# RAG Retrieval Evaluation\n\n"
         "**Status: Not scored**\n\n"
         + reasons[reason] + "\n\n"
         + f"Top-k: {top_k}\n\n"
-        "No retrieval averages are available for this evaluation.\n",
-        encoding="utf-8",
+        "No retrieval averages are available for this evaluation.\n"
     )
+    if run_id is not None:
+        markdown += f"\nRun ID: `{_safe_markdown(run_id)}`\n"
+    markdown_path.write_text(markdown, encoding="utf-8")
     return json_path, markdown_path
 
 

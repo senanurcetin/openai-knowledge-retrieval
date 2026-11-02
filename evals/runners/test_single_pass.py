@@ -336,7 +336,9 @@ def test_repeated_runs_never_leave_stale_retrieval_scores(monkeypatch, tmp_path)
 
         phase["name"] = "no_retrieval"
         harness.run_evals(_cfg(capture=True))
-        assert json.loads(json_path.read_text(encoding="utf-8")) == {
+        unscored = json.loads(json_path.read_text(encoding="utf-8"))
+        assert "run_id" in unscored
+        assert {key: value for key, value in unscored.items() if key != "run_id"} == {
             "status": "not_scored",
             "reason": "no_scored_examples",
             "top_k": 2,
@@ -380,3 +382,64 @@ def test_capture_off_fresh_run_creates_no_retrieval_artifacts(monkeypatch, tmp_p
         assert not (path / "retrieval_metrics.json").exists()
         assert not (path / "retrieval_metrics.md").exists()
         assert not (path / "retrieval_coverage.json").exists()
+
+
+def test_harness_run_id_matches_every_artifact_and_rotates_between_runs(
+    monkeypatch, tmp_path
+):
+    import re
+
+    rows = _rows()
+    state = {"score": True}
+    with monkeypatch.context() as ctx:
+        ctx.chdir(tmp_path)
+
+        def judged(cfg, dataset_path, config_path=None, *, trace_sink=None):
+            if trace_sink is not None:
+                trace_sink(0, {
+                    "status": "captured" if state["score"] else "no_retrieval_call",
+                    "retrieved": [{"doc_id": "gold", "text": "private passage"}],
+                } if state["score"] else {"status": "no_retrieval_call"})
+                trace_sink(1, {"status": "no_retrieval_call"})
+            return {
+                "rows": [
+                    {"question": "slow question", "answer": "alpha",
+                     "latency_ms": 11, "judge": {"decision": "pass"}},
+                    {"question": "fast question", "answer": "beta",
+                     "latency_ms": 13, "judge": {"decision": "pass"}},
+                ],
+                "pass_rate": 1.0, "total_ms": 25,
+            }
+
+        harness = _load_harness(ctx, rows, judged)
+        output = tmp_path / "evals" / "reports"
+        old_id = None
+        for capture in (True, True, False):
+            existing_md = set(output.glob("report_*.md")) if output.exists() else set()
+            harness.run_evals(_cfg(capture=capture))
+
+            new_md = set(output.glob("report_*.md")) - existing_md
+            assert len(new_md) == 1
+            md_content = next(iter(new_md)).read_text(encoding="utf-8")
+            qa_json = (output / "quality_summary.json").read_text(encoding="utf-8")
+            run_id = json.loads(qa_json)["run_id"]
+            assert re.fullmatch(r"[0-9a-f]{32}", run_id)
+            assert run_id != old_id
+            old_id = run_id
+
+            html = (output / "local_summary.html").read_text(encoding="utf-8")
+            coverage = json.loads((output / "retrieval_coverage.json").read_text(encoding="utf-8"))
+            retrieval = json.loads((output / "retrieval_metrics.json").read_text(encoding="utf-8"))
+            retrieval_md = (output / "retrieval_metrics.md").read_text(encoding="utf-8")
+            assert f"Run ID: `{run_id}`" in md_content
+            assert f"Run ID: {run_id}" in html
+            assert f"Run ID: `{run_id}`" in retrieval_md
+            assert coverage["run_id"] == retrieval["run_id"] == run_id
+            assert "private passage" not in qa_json + retrieval_md
+            if capture and state["score"]:
+                assert retrieval["averages"]["hit@k"] == 1.0
+            elif capture:
+                assert retrieval["reason"] == "no_scored_examples"
+            else:
+                assert retrieval["reason"] == "capture_disabled"
+            state["score"] = False

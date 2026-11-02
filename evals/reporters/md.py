@@ -25,6 +25,8 @@ def write_markdown_report(
     lines = []
     lines.append(f"# RAG Eval Report - {_safe_markdown(report.get('project'))}")
     lines.append("")
+    if report.get("run_id"):
+        lines.append(f"Run ID: `{_safe_markdown(report['run_id'])}`  ")
     if report.get("config_path"):
         lines.append(f"Config: `{_safe_markdown(report['config_path'])}`  ")
     lines.append(f"Examples: {report.get('num_examples')}  ")

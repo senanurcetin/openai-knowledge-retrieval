@@ -14,6 +14,8 @@ def write_html_report(summary: Dict[str, Any], out_path: str | Path) -> None:
     body = ["<h1>RAG Evals Summary</h1>"]
     ts = datetime.now(timezone.utc).isoformat()
     body.append(f"<div><em>Generated: {escape(ts)}</em></div>")
+    if summary.get("run_id"):
+        body.append(f"<div>Run ID: {escape(str(summary['run_id']))}</div>")
     body.append("<ul>")
     for k in ["project", "config_path", "num_items", "pass_rate", "report_url"]:
         if k in summary:

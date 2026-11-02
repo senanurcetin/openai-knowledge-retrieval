@@ -12,7 +12,14 @@ def _normalize(s: str) -> str:
 
 
 def exact_match(pred: str, gold: str) -> float:
-    return 1.0 if _normalize(pred) == _normalize(gold) else 0.0
+    """Match substantive normalized answers; empty predictions are not correct.
+
+    A blank reference is not evidence of a successfully answered question.
+    This stays consistent with token F1 and the local heuristic judge.
+    """
+    prediction = _normalize(pred)
+    reference = _normalize(gold)
+    return 1.0 if prediction and reference and prediction == reference else 0.0
 
 
 def f1_score(pred: str, gold: str) -> float:

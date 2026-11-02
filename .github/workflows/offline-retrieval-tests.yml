@@ -38,6 +38,7 @@ jobs:
           evals/metrics/test_retrieval.py
           evals/reporters/test_md.py
           evals/reporters/test_retrieval_metrics.py
+          evals/reporters/test_quality_summary.py
           evals/metrics/test_retrieval_capture.py
           evals/runners/test_single_pass.py
       - name: Compile modified integration modules

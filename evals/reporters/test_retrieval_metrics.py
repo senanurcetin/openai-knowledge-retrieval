@@ -123,3 +123,68 @@ def test_offline_report_distinguishes_full_mrr_from_cutoff_mrr(tmp_path):
     json_path, md_path = write_retrieval_reports(report, tmp_path / "outputs")
     assert "MRR@k" in md_path.read_text(encoding="utf-8")
     assert json.loads(json_path.read_text(encoding="utf-8"))["averages"]["MRR@k"] == 0.0
+
+
+def test_unavailable_score_files_replace_prior_measured_values(tmp_path):
+    from evals.reporters.retrieval_metrics import write_unavailable_retrieval_reports
+
+    dest = tmp_path / "reports"
+    previous = {
+        "num_examples": 1,
+        "top_k": 2,
+        "averages": {
+            key: 1.0 for key in (
+                "hit@k", "recall@k", "precision@k", "MRR", "MRR@k",
+                "context_precision", "support_coverage",
+            )
+        },
+        "rows": [{"id": "old-id", "metrics": {
+            key: 1.0 for key in (
+                "hit@k", "recall@k", "precision@k", "MRR", "MRR@k",
+                "context_precision", "support_coverage",
+            )
+        }}],
+    }
+    write_retrieval_reports(previous, dest)
+    json_path, md_path = write_unavailable_retrieval_reports(
+        dest, top_k=2, reason="no_scored_examples"
+    )
+    result = json.loads(json_path.read_text(encoding="utf-8"))
+    assert result == {
+        "status": "not_scored",
+        "reason": "no_scored_examples",
+        "top_k": 2,
+        "num_examples": 0,
+        "averages": None,
+        "rows": [],
+    }
+    markdown = md_path.read_text(encoding="utf-8")
+    assert "Not scored" in markdown
+    assert "old-id" not in markdown
+    assert "old-id" not in json_path.read_text(encoding="utf-8")
+
+    write_unavailable_retrieval_reports(
+        dest, top_k=2, reason="capture_disabled"
+    )
+    result = json.loads(json_path.read_text(encoding="utf-8"))
+    assert result["reason"] == "capture_disabled"
+    assert "capture was disabled" in md_path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("k", [0, -1, True, 1.5, "2"])
+def test_unavailable_score_writer_rejects_invalid_k(tmp_path, k):
+    from evals.reporters.retrieval_metrics import write_unavailable_retrieval_reports
+    with pytest.raises(ValueError, match="positive integer"):
+        write_unavailable_retrieval_reports(
+            tmp_path, top_k=k, reason="no_scored_examples"
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_unavailable_score_writer_rejects_unknown_reason(tmp_path):
+    from evals.reporters.retrieval_metrics import write_unavailable_retrieval_reports
+    with pytest.raises(ValueError, match="Unknown unscored"):
+        write_unavailable_retrieval_reports(
+            tmp_path, top_k=2, reason="<script>untrusted</script>"
+        )
+    assert list(tmp_path.iterdir()) == []

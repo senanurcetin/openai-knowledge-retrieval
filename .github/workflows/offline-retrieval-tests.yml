@@ -5,6 +5,9 @@ on:
     paths:
       - 'evals/metrics/**'
       - 'evals/reporters/**'
+      - 'retrieval/pipeline.py'
+      - 'evals/harness.py'
+      - 'cli/config.py'
       - '.github/workflows/offline-retrieval-tests.yml'
   workflow_dispatch:
 
@@ -33,3 +36,6 @@ jobs:
           evals/metrics/test_retrieval.py
           evals/reporters/test_md.py
           evals/reporters/test_retrieval_metrics.py
+          evals/metrics/test_retrieval_capture.py
+      - name: Compile modified integration modules
+        run: python -m compileall -q retrieval/pipeline.py evals/harness.py cli/config.py

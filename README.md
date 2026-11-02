@@ -370,7 +370,7 @@ Switch to `evals.mode: user` and provide `evals.dataset_path`. Each JSONL record
 - `id` – unique identifier.
 - `question` – the user query.
 - `citation_text` – supporting passage used for groundedness.
-- `correct_answer`: ideal answer used for EM/F1 scoring (required)
+- `correct_answer`: ideal answer used for EM/F1 scoring (required). Supply substantive nonempty text: blank predictions or blank reference answers receive **EM = 0** and **F1 = 0** rather than a false exact match.
 - Metadata (e.g., `source_id`, `page`, `char_start`, `char_end`, `difficulty`, `tags`).
 
 See `evals/datasets/schema.py` for the full schema; the CLI validates these fields before each run and canonicalizes answers internally for consistent scoring.

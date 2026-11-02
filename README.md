@@ -164,9 +164,11 @@ python -m evals.reporters.retrieval_metrics results.jsonl --top-k 2 --output-dir
 
 This produces `retrieval_metrics.json` (per-query metrics and averages) and
 `retrieval_metrics.md` (a compact table of hit@k, recall@k,
-precision@k, MRR, context precision proxy and citation support coverage).
+precision@k, full-list MRR, cutoff-aware MRR@k, context precision proxy and citation support coverage).
 Input document ranks are preserved; duplicated gold documents receive credit
-only once in precision@k. Each record must contain a nonempty gold document ID.
+only once in precision@k. Full MRR scores the complete returned ranking,
+whereas MRR@k assigns zero if the first relevant document is ranked below
+`top_k`. Each record must contain a nonempty gold document ID.
 The offline JSONL command does not make model requests. For **opt-in capture
 of real retrievals during existing user-mode evaluation**, configure:
 
@@ -178,9 +180,9 @@ evals:
     top_k: 8
 ```
 
-For the `custom` Qdrant backend, the second evaluation pass observes the
-retrieval-tool call already made while producing each answer; it does **not**
-make an additional retrieval/model request. A scored example must have a
+For the `custom` Qdrant backend, the single user-mode evaluation pass observes
+the retrieval-tool call already made while producing each judged answer; it
+does **not** make an additional retrieval/model request. A scored example must have a
 nonempty dataset `item.source_id` matching the indexed `doc_id`, and exactly
 one observed retrieval-tool call. Examples without labels or usable traces
 are listed by reason in `evals/reports/retrieval_coverage.json`. When at least

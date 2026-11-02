@@ -21,7 +21,7 @@ def write_markdown_report(
 ) -> str:
     os.makedirs(out_dir, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    path = os.path.join(out_dir, f"report_{ts}.md")
+    basename = os.path.join(out_dir, f"report_{ts}")
     lines = []
     lines.append(f"# RAG Eval Report - {_safe_markdown(report.get('project'))}")
     lines.append("")
@@ -57,6 +57,17 @@ def write_markdown_report(
             f"| {_safe_markdown(r['id'])} | {r['latency_ms']} | {r['em']:.1f} "
             f"| {r['f1']:.3f} | {_safe_markdown(r['answer'])} |"
         )
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-    return path
+    content = "\n".join(lines)
+    # A second evaluation in the same second must never replace prior results.
+    # Exclusive creation also protects against symlinks/races. Use owner-only
+    # permissions where the host filesystem supports POSIX modes.
+    for suffix in range(1000):
+        name = f"{basename}{'_' + str(suffix) if suffix else ''}.md"
+        try:
+            fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            continue
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+        return name
+    raise FileExistsError("Too many Markdown reports created in one second")

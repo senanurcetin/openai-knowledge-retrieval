@@ -293,3 +293,90 @@ def test_heuristic_never_passes_empty_answers_or_empty_reference(monkeypatch):
         )
         assert valid.correctness == 1.0
         assert valid.decision == "pass"
+
+
+def test_repeated_runs_never_leave_stale_retrieval_scores(monkeypatch, tmp_path):
+    """Measured -> unscored -> capture off must not retain obsolete metrics."""
+    rows = _rows()
+    with monkeypatch.context() as ctx:
+        ctx.chdir(tmp_path)
+        phase = {"name": "measured"}
+
+        def judged(cfg, dataset_path, config_path=None, *, trace_sink=None):
+            if trace_sink is not None:
+                if phase["name"] == "measured":
+                    trace_sink(0, {"status": "captured", "retrieved": [
+                        {"doc_id": "gold", "text": "alpha"},
+                    ]})
+                else:
+                    trace_sink(0, {"status": "no_retrieval_call"})
+                trace_sink(1, {"status": "no_retrieval_call"})
+            return {
+                "rows": [
+                    {"question": "slow question", "answer": "alpha",
+                     "latency_ms": 5, "judge": {"decision": "pass"}},
+                    {"question": "fast question", "answer": "beta",
+                     "latency_ms": 6, "judge": {"decision": "pass"}},
+                ],
+                "pass_rate": 1.0, "total_ms": 15,
+            }
+
+        harness = _load_harness(ctx, rows, judged)
+        harness.write_markdown_report = lambda report: "qa.md"
+        harness.write_html_report = lambda *args: None
+
+        output = tmp_path / "evals" / "reports"
+        json_path = output / "retrieval_metrics.json"
+        md_path = output / "retrieval_metrics.md"
+        coverage_path = output / "retrieval_coverage.json"
+
+        harness.run_evals(_cfg(capture=True))
+        assert json.loads(json_path.read_text(encoding="utf-8"))["averages"]["hit@k"] == 1.0
+        assert "gold" not in md_path.read_text(encoding="utf-8")
+
+        phase["name"] = "no_retrieval"
+        harness.run_evals(_cfg(capture=True))
+        assert json.loads(json_path.read_text(encoding="utf-8")) == {
+            "status": "not_scored",
+            "reason": "no_scored_examples",
+            "top_k": 2,
+            "num_examples": 0,
+            "averages": None,
+            "rows": [],
+        }
+        assert "Not scored" in md_path.read_text(encoding="utf-8")
+        assert json.loads(coverage_path.read_text(encoding="utf-8"))["scored_examples"] == 0
+
+        phase["name"] = "capture_off"
+        harness.run_evals(_cfg(capture=False))
+        assert json.loads(json_path.read_text(encoding="utf-8"))["reason"] == "capture_disabled"
+        assert json.loads(coverage_path.read_text(encoding="utf-8"))["skipped_reasons"] == {
+            "capture_disabled": 2
+        }
+        assert "disabled" in md_path.read_text(encoding="utf-8")
+
+
+def test_capture_off_fresh_run_creates_no_retrieval_artifacts(monkeypatch, tmp_path):
+    with monkeypatch.context() as ctx:
+        ctx.chdir(tmp_path)
+
+        def judged(cfg, dataset_path, config_path=None):
+            return {
+                "rows": [
+                    {"question": "slow question", "answer": "alpha",
+                     "latency_ms": 5, "judge": {"decision": "pass"}},
+                    {"question": "fast question", "answer": "beta",
+                     "latency_ms": 6, "judge": {"decision": "pass"}},
+                ],
+                "pass_rate": 1.0, "total_ms": 15,
+            }
+
+        harness = _load_harness(ctx, _rows(), judged)
+        harness.write_markdown_report = lambda report: "qa.md"
+        harness.write_html_report = lambda *args: None
+        harness.run_evals(_cfg(capture=False))
+        path = tmp_path / "evals" / "reports"
+        assert (path / "quality_summary.json").exists()
+        assert not (path / "retrieval_metrics.json").exists()
+        assert not (path / "retrieval_metrics.md").exists()
+        assert not (path / "retrieval_coverage.json").exists()

@@ -25,7 +25,7 @@ def test_qa_and_retrieval_writers_expose_the_same_explicit_id(tmp_path):
     md_path = Path(write_markdown_report(qa, out_dir=str(tmp_path)))
     html_path = tmp_path / "qa.html"
     write_html_report({"project": "example", "run_id": run_id}, html_path)
-    assert f"Run ID: \`{run_id}\`" in md_path.read_text(encoding="utf-8")
+    assert f"Run ID: `{run_id}`" in md_path.read_text(encoding="utf-8")
     assert f"Run ID: {run_id}" in html_path.read_text(encoding="utf-8")
 
     metrics = {
@@ -37,13 +37,13 @@ def test_qa_and_retrieval_writers_expose_the_same_explicit_id(tmp_path):
     }
     json_path, retrieval_md = write_retrieval_reports(metrics, tmp_path)
     assert json.loads(json_path.read_text(encoding="utf-8"))["run_id"] == run_id
-    assert f"Run ID: \`{run_id}\`" in retrieval_md.read_text(encoding="utf-8")
+    assert f"Run ID: `{run_id}`" in retrieval_md.read_text(encoding="utf-8")
 
     json_path, retrieval_md = write_unavailable_retrieval_reports(
         tmp_path, top_k=2, reason="no_scored_examples", run_id=run_id,
     )
     assert json.loads(json_path.read_text(encoding="utf-8"))["run_id"] == run_id
-    assert f"Run ID: \`{run_id}\`" in retrieval_md.read_text(encoding="utf-8")
+    assert f"Run ID: `{run_id}`" in retrieval_md.read_text(encoding="utf-8")
 
 
 def test_offline_evaluations_generate_different_identifiers(tmp_path):

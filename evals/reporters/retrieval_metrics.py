@@ -102,6 +102,52 @@ def write_retrieval_reports(report: dict[str, Any], output_dir: str | Path) -> t
     return json_path, md_path
 
 
+
+def write_unavailable_retrieval_reports(
+    output_dir: str | Path, *, top_k: int, reason: str
+) -> tuple[Path, Path]:
+    """Replace stale scores with an explicit unscored state.
+
+    Do not write zero-valued averages: no scored examples and a measured
+    zero are mathematically different outcomes. Only fixed internal reasons
+    may be used so the Markdown status remains untrusted-input free.
+    """
+    if type(top_k) is not int or top_k <= 0:
+        raise ValueError("top_k must be a positive integer")
+    reasons = {
+        "no_scored_examples": "No eligible labeled retrieval traces were captured.",
+        "capture_disabled": "Retrieval capture was disabled for this evaluation.",
+    }
+    if reason not in reasons:
+        raise ValueError("Unknown unscored retrieval reason")
+
+    dest = Path(output_dir)
+    dest.mkdir(parents=True, exist_ok=True)
+    json_path = dest / "retrieval_metrics.json"
+    markdown_path = dest / "retrieval_metrics.md"
+    payload = {
+        "status": "not_scored",
+        "reason": reason,
+        "top_k": top_k,
+        "num_examples": 0,
+        "averages": None,
+        "rows": [],
+    }
+    json_path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    markdown_path.write_text(
+        "# RAG Retrieval Evaluation\n\n"
+        "**Status: Not scored**\n\n"
+        + reasons[reason] + "\n\n"
+        + f"Top-k: {top_k}\n\n"
+        "No retrieval averages are available for this evaluation.\n",
+        encoding="utf-8",
+    )
+    return json_path, markdown_path
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Score saved ranked retrieval results without API calls."

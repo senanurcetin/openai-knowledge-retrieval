@@ -23,6 +23,25 @@ def recall_at_k(
     return got / len(set(gold_doc_ids))
 
 
+def precision_at_k(
+    retrieved_doc_ids: List[str], gold_doc_ids: List[str], k: int = 8
+) -> float:
+    """Fraction of the top-k slots occupied by distinct relevant documents.
+
+    Unidentified results and repeated copies of the same relevant document
+    still occupy a slot, but cannot add new relevance credit.
+    """
+    _validate_top_k(k)
+    relevant = set(gold_doc_ids)
+    counted: set[str] = set()
+    matched = 0
+    for doc_id in retrieved_doc_ids[:k]:
+        if doc_id and doc_id in relevant and doc_id not in counted:
+            counted.add(doc_id)
+            matched += 1
+    return matched / k
+
+
 def mrr(retrieved_doc_ids: List[str], gold_doc_id: str) -> float:
     if not gold_doc_id:
         return 0.0
@@ -66,6 +85,7 @@ def compute_retrieval_metrics(
     return {
         "hit@k": hit_at_k(doc_ids, gold_doc_id or "", k=top_k),
         "recall@k": recall_at_k(doc_ids, [gold_doc_id] if gold_doc_id else [], k=top_k),
+        "precision@k": precision_at_k(doc_ids, [gold_doc_id] if gold_doc_id else [], k=top_k),
         "MRR": mrr(doc_ids, gold_doc_id or ""),
         "context_precision": context_precision(concatenated, citation_text),
         "support_coverage": support_coverage(concatenated, citation_text),

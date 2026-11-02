@@ -150,6 +150,25 @@ rag eval --config configs/my.openai.yaml
 ```
 
 The harness can either use an existing dataset (`evals.mode: user`) or synthesize one (`evals.mode: auto`)
+
+For **offline retrieval evaluation** of already-saved ranked results (no model calls
+or credentials), put one record per line in a JSONL file:
+
+```json
+{"id":"q1","gold_doc_id":"doc-A","citation_text":"source text","retrieved":[{"doc_id":"doc-X","text":"other"},{"doc_id":"doc-A","text":"source text"}]}
+```
+
+```bash
+python -m evals.reporters.retrieval_metrics results.jsonl --top-k 2 --output-dir evals/reports
+```
+
+This produces `retrieval_metrics.json` (per-query metrics and averages) and
+`retrieval_metrics.md` (a compact table of hit@k, recall@k,
+precision@k, MRR, context precision proxy and citation support coverage).
+Input document ranks are preserved; duplicated gold documents receive credit
+only once in precision@k. Each record must contain a nonempty gold document ID.
+This is a separate **offline** reporting path: it does not claim that the
+online answer-generation harness captures retrieval traces automatically.
 When `evals.openai_evals.enabled: true`, results are mirrored to the OpenAI Evals dashboard.
 
 ## Configuration & Customization

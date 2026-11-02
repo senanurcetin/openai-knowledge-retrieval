@@ -244,3 +244,40 @@ def test_harness_fails_closed_if_judge_returns_fewer_rows(monkeypatch, tmp_path)
         harness.write_markdown_report = lambda report: pytest.fail("incomplete report saved")
         with pytest.raises(ValueError, match="incomplete evaluation batch"):
             harness.run_evals(_cfg())
+
+
+def test_heuristic_never_passes_empty_answers_or_empty_reference(monkeypatch):
+    """Even perfectly supporting context cannot make an absent answer correct."""
+    with monkeypatch.context() as ctx:
+        _setup_common(ctx, [])
+        _module(
+            ctx, "evals.generator.canonicalize",
+            canonicalize_answer=lambda value: (value or "").strip().strip(".,:;").lower(),
+        )
+        _module(ctx, "evals.graders.schema", JudgeDecision=FakeDecision)
+        _module(ctx, "evals.graders.judge_prompts", SINGLE_RUBRIC_QA_GROUNDED="test")
+        _module(
+            ctx, "evals.graders.runner", GraderResult=object,
+            run_config_graders=lambda *a, **kw: [],
+            summarize_graders=lambda *a, **kw: "",
+        )
+        _module(ctx, "retrieval.pipeline", answer_query=lambda **kw: None)
+        judge = _load_source("_test_empty_answer_judge", "evals/runners/local_judge.py")
+
+        for missing_answer in ("", " ", "  . ,  "):
+            result = judge._heuristic_judge(
+                missing_answer, "expected result", "expected result"
+            )
+            assert result.correctness == 0.0
+            assert result.decision == "fail"
+            assert result.grounding == 1.0
+
+        absent_reference = judge._heuristic_judge("hallucinated", "", "")
+        assert absent_reference.correctness == 0.0
+        assert absent_reference.decision == "fail"
+
+        valid = judge._heuristic_judge(
+            "expected result", "expected result", "expected result"
+        )
+        assert valid.correctness == 1.0
+        assert valid.decision == "pass"

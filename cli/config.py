@@ -263,6 +263,7 @@ class RetrievalMetricsConfig(BaseModel):
             "hit@k",
             "recall@k",
             "MRR",
+            "MRR@k",
             "context_precision",
             "support_coverage",
         ]

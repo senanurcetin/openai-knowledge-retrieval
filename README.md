@@ -167,8 +167,31 @@ This produces `retrieval_metrics.json` (per-query metrics and averages) and
 precision@k, MRR, context precision proxy and citation support coverage).
 Input document ranks are preserved; duplicated gold documents receive credit
 only once in precision@k. Each record must contain a nonempty gold document ID.
-This is a separate **offline** reporting path: it does not claim that the
-online answer-generation harness captures retrieval traces automatically.
+The offline JSONL command does not make model requests. For **opt-in capture
+of real retrievals during existing user-mode evaluation**, configure:
+
+```yaml
+evals:
+  mode: user
+  retrieval_metrics:
+    capture: true
+    top_k: 8
+```
+
+For the `custom` Qdrant backend, the second evaluation pass observes the
+retrieval-tool call already made while producing each answer; it does **not**
+make an additional retrieval/model request. A scored example must have a
+nonempty dataset `item.source_id` matching the indexed `doc_id`, and exactly
+one observed retrieval-tool call. Examples without labels or usable traces
+are listed by reason in `evals/reports/retrieval_coverage.json`. When at least
+one example qualifies, `retrieval_metrics.json` and `retrieval_metrics.md`
+contain **only example IDs and scores**, not raw retrieved document text.
+
+Capture is **disabled by default**. The `openai_file_search` backend does not
+expose a ranked retrieval trace through this interface and is reported as
+unsupported rather than scored as zero. Multiple retrieval-tool calls are
+also excluded rather than being misrepresented as a single ranking. The
+existing local and optional hosted judge calls are otherwise unchanged.
 When `evals.openai_evals.enabled: true`, results are mirrored to the OpenAI Evals dashboard.
 
 ## Configuration & Customization

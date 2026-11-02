@@ -11,6 +11,7 @@ from cli.env_utils import build_openai_client
 from models.synthesis import synthesize_openai_file_search, chat_with_tools
 from prompts.loader import load_prompt
 from retrieval.citations import extract_spans
+from evals.metrics.retrieval_capture import RetrievalTraceCollector
 from retrieval.expansion import expand_queries, generate_hyde_documents
 from retrieval.filter import apply_similarity_filter
 from retrieval.reranker import rerank_with_cross_encoder
@@ -210,7 +211,8 @@ with _TOOL_SPEC_PATH.open("r", encoding="utf-8") as _tool_file:
 
 
 def answer_query(
-    store, cfg: RootConfig, query: str, history: Optional[List[Dict[str, str]]] = None
+    store, cfg: RootConfig, query: str, history: Optional[List[Dict[str, str]]] = None,
+    *, capture_retrieval: bool = False,
 ) -> Dict[str, Any]:
     rprint("[bold]Chat[/bold]: starting pipeline")
     if cfg.vector_store.backend == "openai_file_search":
@@ -222,6 +224,8 @@ def answer_query(
             cfg, query, vector_store_id=vs_id, history=history
         )
         rprint("[green]Synthesis complete[/green]")
+        if capture_retrieval and isinstance(out, dict):
+            return {**out, "retrieval_trace": {"status": "unsupported_backend"}}
         return out
 
     # custom backend: provide a retrieval tool the model can call
@@ -229,10 +233,13 @@ def answer_query(
     rprint("[cyan]Preparing retrieval tool...[/cyan]")
 
     last_chunks: List[Dict[str, Any]] = []
+    collector = RetrievalTraceCollector() if capture_retrieval else None
 
     def _on_chunks(chunks: List[Dict[str, Any]]) -> None:
         nonlocal last_chunks
         last_chunks = [dict(chunk) for chunk in chunks]
+        if collector is not None:
+            collector.on_chunks(chunks)
 
     retrieve_handler = build_retrieval_handler(
         cfg=cfg,
@@ -271,4 +278,8 @@ def answer_query(
             max_per_source=cfg.query.citations.max_per_source,
         )
         output["citations"] = cits
+    # Explicit evaluation-only opt-in. Default application response and
+    # citation behavior do not expose retrieved source text or trace metadata.
+    if collector is not None and isinstance(output, dict):
+        output = {**output, "retrieval_trace": collector.trace()}
     return output

@@ -51,7 +51,9 @@ def compute_retrieval_metrics(
     citation_text: str,
     top_k: int = 8,
 ) -> Dict[str, float]:
-    doc_ids = [r.get("doc_id") for r in retrieved if r.get("doc_id")]
+    # A result without an ID still occupies a retrieval rank. Dropping it
+    # would shift later gold documents forward and inflate hit@k / MRR.
+    doc_ids = [r.get("doc_id") or "" for r in retrieved]
     concatenated = "\n".join(r.get("text", "") for r in retrieved[:top_k])
     return {
         "hit@k": hit_at_k(doc_ids, gold_doc_id or "", k=top_k),

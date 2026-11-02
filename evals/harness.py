@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import time
 from typing import Any, Dict, List
@@ -9,6 +10,8 @@ from rich import print as rprint
 from cli.config import RootConfig
 from evals.datasets.schema import load_and_validate_jsonl
 from evals.metrics.qa import em_f1
+from evals.metrics.retrieval_capture import summarize_captured_retrieval
+from evals.reporters.retrieval_metrics import write_retrieval_reports
 from evals.reporters import write_markdown_report
 from evals.reporters.html import write_html_report
 from evals.runners.local_judge import run_local_judge
@@ -44,13 +47,25 @@ def run_evals(cfg: RootConfig, run_ablations: bool = False, config_path: str | N
         rows = load_and_validate_jsonl(cfg.evals.dataset_path)
         store = make_store_from_config(cfg)
         md_rows: List[Dict[str, Any]] = []
+        capture_enabled = bool(cfg.evals.retrieval_metrics.capture)
+        captured_examples: List[Dict[str, Any]] = []
         t0 = time.time()
         for ex in rows:
             t_q = time.time()
-            out = answer_query(store, cfg, ex.item.question)
+            out = (
+                answer_query(store, cfg, ex.item.question, capture_retrieval=True)
+                if capture_enabled else answer_query(store, cfg, ex.item.question)
+            )
             t_ms = int((time.time() - t_q) * 1000)
             ans = out.get("answer_text") if isinstance(out, dict) else str(out)
             em, f1 = em_f1(ans or "", ex.item.correct_answer or "")
+            if capture_enabled:
+                captured_examples.append({
+                    "id": ex.item.id or "",
+                    "source_id": ex.item.source_id,
+                    "citation_text": ex.item.citation_text,
+                    "retrieval_trace": out.get("retrieval_trace") if isinstance(out, dict) else None,
+                })
             md_rows.append(
                 {
                     "id": ex.item.id or "",
@@ -77,6 +92,30 @@ def run_evals(cfg: RootConfig, run_ablations: bool = False, config_path: str | N
         html_path = os.path.join("evals", "reports", "local_summary.html")
         write_html_report(local_summary, html_path)
         rprint(f"[cyan]Wrote reports[/cyan]: {md_path} and {html_path}")
+
+        if capture_enabled:
+            report, coverage = summarize_captured_retrieval(
+                captured_examples, top_k=cfg.evals.retrieval_metrics.top_k
+            )
+            report_dir = os.path.join("evals", "reports")
+            os.makedirs(report_dir, exist_ok=True)
+            coverage_path = os.path.join(report_dir, "retrieval_coverage.json")
+            # Persist only coverage counts and ID/score reports. Never write
+            # retrieved source text or raw user queries in these outputs.
+            with open(coverage_path, "w", encoding="utf-8") as handle:
+                json.dump(coverage, handle, indent=2, ensure_ascii=False)
+                handle.write("\n")
+            if report is not None:
+                json_path, markdown_path = write_retrieval_reports(report, report_dir)
+                rprint(
+                    f"[cyan]Retrieval scores[/cyan]: {json_path}, {markdown_path} "
+                    f"({coverage['scored_examples']}/{coverage['total_examples']} scored)"
+                )
+            else:
+                rprint(
+                    "[yellow]No retrieval scores produced[/yellow]: "
+                    "see retrieval_coverage.json for unsupported or missing traces."
+                )
 
         #   2) OpenAI Evals (optional)
         if getattr(cfg.evals.openai_evals, "enabled", True):

@@ -134,6 +134,8 @@ def run_local_judge(
         answer_text = ""
         if isinstance(out, dict):
             answer_text = out.get("answer_text") or out.get("answer") or ""
+        elif out is not None:
+            answer_text = str(out)
         # Judge
         decision = _heuristic_judge(answer_text, ex.item.correct_answer, ex.item.citation_text)
         grader_payload = {}
@@ -169,20 +171,22 @@ def run_local_judge(
             if trace_sink is not None:
                 trace_sink(index, trace)
 
-    # All submitted futures completed or raised, so no result remains missing.
-    assert all(result is not None for result in results)
+    # Never report an incomplete batch as if all evaluations succeeded.
+    if any(result is None for result in results):
+        raise RuntimeError("Local judge did not produce every evaluation result")
+    ordered_results = [result for result in results if result is not None]
     total_ms = int((time.time() - t0) * 1000)
-    pass_rate = sum(1 for r in results if r["judge"]["decision"] == "pass") / max(
-        1, len(results)
+    pass_rate = sum(1 for r in ordered_results if r["judge"]["decision"] == "pass") / max(
+        1, len(ordered_results)
     )
     summary = {
         "project": cfg.project,
         "num_items": len(rows),
         "total_ms": total_ms,
-        "avg_latency_ms": sum(r["latency_ms"] for r in results) / max(1, len(results)),
+        "avg_latency_ms": sum(r["latency_ms"] for r in ordered_results) / max(1, len(ordered_results)),
         "pass_rate": pass_rate,
         "threshold_pass": pass_rate >= cfg.evals.thresholds.pass_rate,
-        "rows": results,
+        "rows": ordered_results,
     }
     if config_path:
         summary["config_path"] = config_path

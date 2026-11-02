@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 from rich import print as rprint
 
@@ -104,10 +104,17 @@ def _apply_config_graders(
     return decision, [g.to_dict() for g in graders]
 
 
-def run_local_judge(cfg: RootConfig, dataset_path: str | Path, config_path: str | None = None) -> Dict[str, Any]:
+def run_local_judge(
+    cfg: RootConfig,
+    dataset_path: str | Path,
+    config_path: str | None = None,
+    *,
+    trace_sink: Callable[[int, dict[str, Any] | None], None] | None = None,
+) -> Dict[str, Any]:
     rows = load_and_validate_jsonl(dataset_path)
     # Main loop: use app pipeline to answer then judge locally
-    results: List[Dict[str, Any]] = []
+    # The dataset's order is authoritative: thread completion order is not.
+    results: List[Dict[str, Any] | None] = [None] * len(rows)
     t0 = time.time()
     from stores.base import make_store_from_config
 
@@ -117,8 +124,13 @@ def run_local_judge(cfg: RootConfig, dataset_path: str | Path, config_path: str 
         q = ex.item.question
         rprint(f"[cyan]Evaluating[/cyan]: {q[:60]}...")
         t_q = time.time()
-        out = answer_query(store=store, cfg=cfg, query=q)
+        if trace_sink is None:
+            out = answer_query(store=store, cfg=cfg, query=q)
+        else:
+            out = answer_query(store=store, cfg=cfg, query=q, capture_retrieval=True)
         latency_ms = int((time.time() - t_q) * 1000)
+        # Keep the trace in memory for metrics only, never in judge/HTML rows.
+        trace = out.get("retrieval_trace") if isinstance(out, dict) else None
         answer_text = ""
         if isinstance(out, dict):
             answer_text = out.get("answer_text") or out.get("answer") or ""
@@ -143,14 +155,22 @@ def run_local_judge(cfg: RootConfig, dataset_path: str | Path, config_path: str 
             "judge": {**enriched_decision.model_dump(), **grader_payload},
             "latency_ms": latency_ms,
             "grader_payload": grader_payload,
-        }
+        }, trace
 
     with ThreadPoolExecutor() as executor:
-        future_to_ex = {executor.submit(process_example, ex): ex for ex in rows}
-        for future in as_completed(future_to_ex):
-            result = future.result()
-            results.append(result)
+        future_to_index = {
+            executor.submit(process_example, ex): index
+            for index, ex in enumerate(rows)
+        }
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            result, trace = future.result()
+            results[index] = result
+            if trace_sink is not None:
+                trace_sink(index, trace)
 
+    # All submitted futures completed or raised, so no result remains missing.
+    assert all(result is not None for result in results)
     total_ms = int((time.time() - t0) * 1000)
     pass_rate = sum(1 for r in results if r["judge"]["decision"] == "pass") / max(
         1, len(results)

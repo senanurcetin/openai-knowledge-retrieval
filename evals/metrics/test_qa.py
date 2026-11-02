@@ -22,3 +22,24 @@ def test_f1_uses_token_occurrence_counts(pred, gold, expected):
 def test_exact_match_stays_independent_of_token_f1():
     assert exact_match("red red blue", "red blue") == 0.0
     assert em_f1("red red blue", "red blue") == (0.0, pytest.approx(0.8))
+
+
+@pytest.mark.parametrize(
+    "prediction,reference,expected",
+    [
+        ("", "", 0.0),
+        (" \n\t ", "\t", 0.0),
+        ("", "expected answer", 0.0),
+        ("nonempty answer", "", 0.0),
+        (" Correct ANSWER  ", "correct answer", 1.0),
+    ],
+)
+def test_exact_match_requires_nonempty_prediction_and_reference(
+    prediction, reference, expected
+):
+    assert exact_match(prediction, reference) == expected
+
+
+def test_empty_qa_pair_cannot_inflate_aggregate_accuracy():
+    assert em_f1("", "") == (0.0, 0.0)
+    assert em_f1(" ", " ") == (0.0, 0.0)

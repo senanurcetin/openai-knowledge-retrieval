@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from typing import Tuple
 
 
@@ -15,13 +16,14 @@ def exact_match(pred: str, gold: str) -> float:
 
 
 def f1_score(pred: str, gold: str) -> float:
-    p = set(_normalize(pred).split())
-    g = set(_normalize(gold).split())
+    # Token counts (not sets) prevent repeated predictions from inflating F1.
+    p = Counter(_normalize(pred).split())
+    g = Counter(_normalize(gold).split())
     if not p or not g:
         return 0.0
-    inter = len(p & g)
-    prec = inter / len(p)
-    rec = inter / len(g)
+    inter = sum((p & g).values())
+    prec = inter / sum(p.values())
+    rec = inter / sum(g.values())
     if prec + rec == 0:
         return 0.0
     return 2 * prec * rec / (prec + rec)

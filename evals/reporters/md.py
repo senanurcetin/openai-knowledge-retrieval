@@ -30,6 +30,23 @@ def write_markdown_report(
     lines.append(f"Examples: {report.get('num_examples')}  ")
     lines.append(f"Avg latency: {report.get('avg_latency_ms'):.1f} ms  ")
     lines.append(f"EM: {report.get('avg_em'):.3f}  F1: {report.get('avg_f1'):.3f}")
+    quality = report.get("quality_summary")
+    if quality:
+        judge = quality["judge"]
+        latency = quality["latency_ms"]
+        answer_quality = quality["answer_quality"]
+        lines.extend([
+            "",
+            "## Aggregate quality",
+            "",
+            f"Judge: {judge['passed']} passed / {judge['failed']} failed "
+            f"(pass rate {judge['pass_rate']:.3f}, threshold "
+            f"{judge['pass_threshold']:.3f}, threshold pass: "
+            f"{str(judge['threshold_pass']).lower()})  ",
+            f"Latency P50: {latency['p50']:.1f} ms; "
+            f"P95 (nearest-rank): {latency['p95']} ms  ",
+            f"Judge passed but EM < 1: {answer_quality['judge_pass_not_exact']}",
+        ])
     lines.append("")
     lines.append("## Rows")
     lines.append("")

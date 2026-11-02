@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import time
 from typing import Any, Dict, List
 
 from rich import print as rprint
@@ -16,8 +15,6 @@ from evals.reporters import write_markdown_report
 from evals.reporters.html import write_html_report
 from evals.runners.local_judge import run_local_judge
 from evals.runners.openai_evals import run_openai_evals
-from retrieval.pipeline import answer_query
-from stores.base import make_store_from_config
 
 
 def _write_openai_report_link(project: str, report_url: str) -> str:
@@ -38,44 +35,55 @@ def run_evals(cfg: RootConfig, run_ablations: bool = False, config_path: str | N
         if not cfg.evals.dataset_path:
             raise SystemExit("evals.dataset_path not configured for user mode")
 
-        # 1) Local run with judge (for pass rate + HTML)
-        local_summary = run_local_judge(cfg, cfg.evals.dataset_path, config_path=config_path)
+        # One answer-generation pass is enough for judging, EM/F1 and reports.
+        # Traces are returned only through this ephemeral callback; the judge
+        # and HTML payloads never contain raw retrieved source chunks.
+        capture_enabled = bool(cfg.evals.retrieval_metrics.capture)
+        traces: dict[int, dict[str, Any] | None] = {}
+
+        def record_trace(index: int, trace: dict[str, Any] | None) -> None:
+            traces[index] = trace
+
+        if capture_enabled:
+            local_summary = run_local_judge(
+                cfg, cfg.evals.dataset_path, config_path=config_path,
+                trace_sink=record_trace,
+            )
+        else:
+            local_summary = run_local_judge(
+                cfg, cfg.evals.dataset_path, config_path=config_path
+            )
         rprint(
             f"[green]Local judge pass rate[/green]: {local_summary.get('pass_rate'):.3f}"
         )
-        # Also compute simple EM/F1 to keep existing MD reporter compatible
         rows = load_and_validate_jsonl(cfg.evals.dataset_path)
-        store = make_store_from_config(cfg)
+        judged = local_summary["rows"]
+        if len(judged) != len(rows):
+            raise ValueError("Local judge returned an incomplete evaluation batch")
         md_rows: List[Dict[str, Any]] = []
-        capture_enabled = bool(cfg.evals.retrieval_metrics.capture)
         captured_examples: List[Dict[str, Any]] = []
-        t0 = time.time()
-        for ex in rows:
-            t_q = time.time()
-            out = (
-                answer_query(store, cfg, ex.item.question, capture_retrieval=True)
-                if capture_enabled else answer_query(store, cfg, ex.item.question)
-            )
-            t_ms = int((time.time() - t_q) * 1000)
-            ans = out.get("answer_text") if isinstance(out, dict) else str(out)
-            em, f1 = em_f1(ans or "", ex.item.correct_answer or "")
+        for index, (ex, judged_row) in enumerate(zip(rows, judged, strict=True)):
+            if judged_row.get("question") != ex.item.question:
+                raise ValueError("Local judge result order does not match the dataset")
+            ans = judged_row.get("answer") or ""
+            em, f1 = em_f1(ans, ex.item.correct_answer or "")
             if capture_enabled:
                 captured_examples.append({
                     "id": ex.item.id or "",
                     "source_id": ex.item.source_id,
                     "citation_text": ex.item.citation_text,
-                    "retrieval_trace": out.get("retrieval_trace") if isinstance(out, dict) else None,
+                    "retrieval_trace": traces.get(index),
                 })
             md_rows.append(
                 {
                     "id": ex.item.id or "",
-                    "latency_ms": t_ms,
+                    "latency_ms": judged_row["latency_ms"],
                     "em": em,
                     "f1": f1,
                     "answer": ans,
                 }
             )
-        total_ms = int((time.time() - t0) * 1000)
+        total_ms = local_summary["total_ms"]
         md_report = {
             "project": cfg.project,
             "num_examples": len(rows),

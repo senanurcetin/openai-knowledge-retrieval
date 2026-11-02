@@ -103,3 +103,23 @@ def test_cli_writes_offline_reports_without_api_key(tmp_path, monkeypatch, capsy
     assert (dest / "retrieval_metrics.json").exists()
     assert (dest / "retrieval_metrics.md").exists()
     assert "Retrieval report:" in capsys.readouterr().out
+
+
+def test_offline_report_distinguishes_full_mrr_from_cutoff_mrr(tmp_path):
+    source = tmp_path / "cutoff.jsonl"
+    write_jsonl(source, [
+        {
+            "id": "gold-after-cutoff", "gold_doc_id": "gold",
+            "retrieved": [
+                {"doc_id": "other", "text": "irrelevant"},
+                {"doc_id": "gold", "text": "relevant"},
+            ],
+        },
+    ])
+    report = evaluate_retrieval_jsonl(source, top_k=1)
+    assert report["averages"]["MRR"] == 0.5
+    assert report["averages"]["MRR@k"] == 0.0
+    assert report["rows"][0]["metrics"]["hit@k"] == 0.0
+    json_path, md_path = write_retrieval_reports(report, tmp_path / "outputs")
+    assert "MRR@k" in md_path.read_text(encoding="utf-8")
+    assert json.loads(json_path.read_text(encoding="utf-8"))["averages"]["MRR@k"] == 0.0

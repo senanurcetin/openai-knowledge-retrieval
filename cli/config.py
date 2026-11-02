@@ -257,12 +257,13 @@ class RetrievalMetricsConfig(BaseModel):
     # Disabled by default to avoid persisting retrieval metadata unexpectedly.
     capture: bool = False
     compute: List[
-        Literal["hit@k", "recall@k", "precision@k", "MRR", "context_precision", "support_coverage"]
+        Literal["hit@k", "recall@k", "precision@k", "MRR", "MRR@k", "context_precision", "support_coverage"]
     ] = Field(
         default_factory=lambda: [
             "hit@k",
             "recall@k",
             "MRR",
+            "MRR@k",
             "context_precision",
             "support_coverage",
         ]

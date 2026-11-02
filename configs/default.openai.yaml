@@ -76,7 +76,7 @@ evals:
         pass_threshold: 5.5
   retrieval_metrics:
     top_k: 8
-    compute: ["hit@k","recall@k","MRR","context_precision","support_coverage"]
+    compute: ["hit@k","recall@k","MRR","MRR@k","context_precision","support_coverage"]
   auto:
     items_target: 150
     mix: {easy: 0.5, medium: 0.35, hard: 0.15}

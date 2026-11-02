@@ -23,7 +23,9 @@ def _heuristic_judge(
     ma = canonicalize_answer(model_answer or "")
     ca = canonicalize_answer(correct_answer or "")
     ct = (citation_text or "").lower()
-    correctness = 1.0 if ma == ca or ca in ma or ma in ca else 0.0
+    # Empty strings are substrings of every answer in Python. Never grant
+    # correctness credit for an absent prediction or an empty gold answer.
+    correctness = 1.0 if ma and ca and (ma == ca or ca in ma or ma in ca) else 0.0
     grounding = 1.0 if ca and ca in ct else 0.0
     decision = "pass" if correctness >= 1.0 and grounding >= 0.8 else "fail"
     return JudgeDecision(

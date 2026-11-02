@@ -171,8 +171,8 @@ def test_harness_uses_judge_answers_once_for_markdown_even_with_duplicate_ids(
             calls.append(dataset_path)
             return {
                 "rows": [
-                    {"question": "slow question", "answer": "alpha", "latency_ms": 90},
-                    {"question": "fast question", "answer": "beta", "latency_ms": 15},
+                    {"question": "slow question", "answer": "alpha", "latency_ms": 90, "judge": {"decision": "pass"}},
+                    {"question": "fast question", "answer": "beta", "latency_ms": 15, "judge": {"decision": "pass"}},
                 ],
                 "pass_rate": 1.0, "total_ms": 120,
             }
@@ -188,6 +188,16 @@ def test_harness_uses_judge_answers_once_for_markdown_even_with_duplicate_ids(
         assert [r["answer"] for r in captured["md"]["rows"]] == ["alpha", "beta"]
         assert [r["latency_ms"] for r in captured["md"]["rows"]] == [90, 15]
         assert all(r["em"] == 1.0 and r["f1"] == 1.0 for r in captured["md"]["rows"])
+        # The quality JSON contains aggregates only, not user questions/answers.
+        quality_path = tmp_path / "evals" / "reports" / "quality_summary.json"
+        quality = json.loads(quality_path.read_text(encoding="utf-8"))
+        assert quality["judge"]["passed"] == 2
+        assert quality["judge"]["failed"] == 0
+        assert quality["latency_ms"]["p50"] == 52.5
+        assert quality["latency_ms"]["p95"] == 90
+        assert quality["answer_quality"]["judge_pass_not_exact"] == 0
+        assert "slow question" not in quality_path.read_text(encoding="utf-8")
+        assert captured["md"]["quality_summary"] == quality
 
 
 def test_harness_captures_scoring_on_same_pass_and_excludes_raw_text_from_files(
@@ -207,8 +217,8 @@ def test_harness_captures_scoring_on_same_pass_and_excludes_raw_text_from_files(
             ]})
             return {
                 "rows": [
-                    {"question": "slow question", "answer": "alpha", "latency_ms": 10},
-                    {"question": "fast question", "answer": "beta", "latency_ms": 7},
+                    {"question": "slow question", "answer": "alpha", "latency_ms": 10, "judge": {"decision": "pass"}},
+                    {"question": "fast question", "answer": "beta", "latency_ms": 7, "judge": {"decision": "pass"}},
                 ],
                 "pass_rate": 1.0, "total_ms": 21,
             }

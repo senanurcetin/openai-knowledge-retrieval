@@ -309,6 +309,15 @@ reports retain the original dataset order. Optional external judge/hosted
 OpenAI Evals calls still depend on their own settings and may incur costs.
 Auto-mode dataset generation is unchanged.
 
+Every successful curated user-mode run also writes `evals/reports/quality_summary.json`,
+a **raw-text-free** aggregate of the same locally judged answers. It records
+judge pass/fail counts and pass threshold, mean exact match and token F1,
+the number of judge passes without an exact-match answer, and mean/P50/P95/max
+answer latency. The P95 uses the **nearest-rank method** (for very small samples,
+it can equal the maximum). The same summary appears in the Markdown and HTML
+reports. Judge/EM disagreements are diagnostic; they are **not** automatically
+treated as failures or evidence of incorrect grading.
+
 ### Auto-generated datasets
 
 Set `evals.mode: auto` to synthesize evaluation data from your corpus. The harness:

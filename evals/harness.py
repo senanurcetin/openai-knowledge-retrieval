@@ -11,6 +11,7 @@ from evals.datasets.schema import load_and_validate_jsonl
 from evals.metrics.qa import em_f1
 from evals.metrics.retrieval_capture import summarize_captured_retrieval
 from evals.reporters.retrieval_metrics import write_retrieval_reports
+from evals.reporters.quality_summary import summarize_qa_quality
 from evals.reporters import write_markdown_report
 from evals.reporters.html import write_html_report
 from evals.runners.local_judge import run_local_judge
@@ -96,6 +97,20 @@ def run_evals(cfg: RootConfig, run_ablations: bool = False, config_path: str | N
         }
         if config_path:
             md_report["config_path"] = config_path
+        quality_summary = summarize_qa_quality(
+            judged, md_rows, pass_threshold=cfg.evals.thresholds.pass_rate
+        )
+        md_report["quality_summary"] = quality_summary
+        # Shared aggregates in both reports guarantee the same one-pass data
+        # underlies Markdown, HTML and machine-readable quality metadata.
+        local_summary["quality_summary"] = quality_summary
+        report_dir = os.path.join("evals", "reports")
+        os.makedirs(report_dir, exist_ok=True)
+        with open(
+            os.path.join(report_dir, "quality_summary.json"), "w", encoding="utf-8"
+        ) as handle:
+            json.dump(quality_summary, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
         md_path = write_markdown_report(md_report)
         html_path = os.path.join("evals", "reports", "local_summary.html")
         write_html_report(local_summary, html_path)

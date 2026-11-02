@@ -19,6 +19,24 @@ def write_html_report(summary: Dict[str, Any], out_path: str | Path) -> None:
         if k in summary:
             body.append(f"<li><b>{escape(str(k))}</b>: {escape(str(summary[k]))}</li>")
     body.append("</ul>")
+    quality = summary.get("quality_summary")
+    if quality:
+        judge = quality["judge"]
+        latency = quality["latency_ms"]
+        qa = quality["answer_quality"]
+        body.extend([
+            "<h2>Aggregate quality</h2><ul>",
+            f"<li>Judge passed: {judge['passed']} / failed: {judge['failed']}</li>",
+            f"<li>Judge pass rate: {judge['pass_rate']:.3f}; "
+            f"threshold: {judge['pass_threshold']:.3f}; "
+            f"threshold passed: {str(judge['threshold_pass']).lower()}</li>",
+            f"<li>Mean exact match: {qa['mean_exact_match']:.3f}; "
+            f"mean token F1: {qa['mean_token_f1']:.3f}</li>",
+            f"<li>P50 latency: {latency['p50']:.1f} ms; "
+            f"P95 latency (nearest-rank): {latency['p95']} ms</li>",
+            f"<li>Judge passed but EM &lt; 1: {qa['judge_pass_not_exact']}</li>",
+            "</ul>",
+        ])
     if "rows" in summary:
         body.append("<h2>Rows</h2><ol>")
         for r in summary["rows"][:100]:

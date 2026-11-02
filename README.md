@@ -189,6 +189,16 @@ are listed by reason in `evals/reports/retrieval_coverage.json`. When at least
 one example qualifies, `retrieval_metrics.json` and `retrieval_metrics.md`
 contain **only example IDs and scores**, not raw retrieved document text.
 
+If the latest captured evaluation has **no scoreable examples**, the managed
+`retrieval_metrics.json` and `retrieval_metrics.md` are overwritten with an
+explicit `not_scored` status rather than leaving stale scores from an earlier
+run. The JSON then has `averages: null`, not fabricated zero metrics; inspect
+`retrieval_coverage.json` for the precise skipped reasons. When capture is
+turned off after a prior captured evaluation (recognized by an existing
+`retrieval_coverage.json`), those managed outputs are replaced with
+`capture_disabled` markers. Fresh runs with capture disabled do not create
+retrieval artifacts. Standalone offline JSONL evaluations remain independent.
+
 Capture is **disabled by default**. The `openai_file_search` backend does not
 expose a ranked retrieval trace through this interface and is reported as
 unsupported rather than scored as zero. Multiple retrieval-tool calls are

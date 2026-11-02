@@ -3,13 +3,20 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 
+def _validate_top_k(k: int) -> None:
+    if type(k) is not int or k <= 0:
+        raise ValueError("top_k must be a positive integer")
+
+
 def hit_at_k(retrieved_doc_ids: List[str], gold_doc_id: str, k: int = 8) -> float:
+    _validate_top_k(k)
     return 1.0 if gold_doc_id and gold_doc_id in retrieved_doc_ids[:k] else 0.0
 
 
 def recall_at_k(
     retrieved_doc_ids: List[str], gold_doc_ids: List[str], k: int = 8
 ) -> float:
+    _validate_top_k(k)
     if not gold_doc_ids:
         return 0.0
     got = sum(1 for g in set(gold_doc_ids) if g in set(retrieved_doc_ids[:k]))
@@ -51,10 +58,11 @@ def compute_retrieval_metrics(
     citation_text: str,
     top_k: int = 8,
 ) -> Dict[str, float]:
+    _validate_top_k(top_k)
     # A result without an ID still occupies a retrieval rank. Dropping it
     # would shift later gold documents forward and inflate hit@k / MRR.
     doc_ids = [r.get("doc_id") or "" for r in retrieved]
-    concatenated = "\n".join(r.get("text", "") for r in retrieved[:top_k])
+    concatenated = "\n".join(r.get("text") or "" for r in retrieved[:top_k])
     return {
         "hit@k": hit_at_k(doc_ids, gold_doc_id or "", k=top_k),
         "recall@k": recall_at_k(doc_ids, [gold_doc_id] if gold_doc_id else [], k=top_k),

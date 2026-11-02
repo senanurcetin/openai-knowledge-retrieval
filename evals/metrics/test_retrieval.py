@@ -69,3 +69,36 @@ def test_retrieval_rejects_invalid_top_k_values():
             hit_at_k(["gold"], "gold", k=invalid)
         with pytest.raises(ValueError, match="positive integer"):
             recall_at_k(["gold"], ["gold"], k=invalid)
+
+def test_precision_at_k_counts_unique_gold_documents_and_preserves_rank():
+    from evals.metrics.retrieval import precision_at_k
+
+    assert precision_at_k(["gold", "irrelevant"], ["gold"], k=2) == 0.5
+    assert precision_at_k(["", "gold"], ["gold"], k=1) == 0.0
+    assert precision_at_k(["", "gold"], ["gold"], k=2) == 0.5
+    assert precision_at_k(["gold", "gold", "other"], ["gold"], k=3) == 1 / 3
+    assert precision_at_k(["x", "y"], ["x", "y"], k=2) == 1.0
+    assert precision_at_k([], ["gold"], k=2) == 0.0
+
+
+def test_precision_at_k_rejects_invalid_k_and_empty_gold():
+    from evals.metrics.retrieval import precision_at_k
+    import pytest
+
+    assert precision_at_k(["gold"], [], k=1) == 0.0
+    for invalid in [0, -1, True, 1.5, "2"]:
+        with pytest.raises(ValueError, match="positive integer"):
+            precision_at_k(["gold"], ["gold"], k=invalid)
+
+
+def test_computed_metrics_include_precision_at_k_without_shifting_unidentified_results():
+    results = [
+        {"doc_id": None, "text": "unidentified"},
+        {"doc_id": "gold", "text": "the answer"},
+        {"doc_id": "gold", "text": "duplicate gold record"},
+    ]
+    result = compute_retrieval_metrics(results, "gold", "", top_k=3)
+    assert result["precision@k"] == 1 / 3
+    assert result["hit@k"] == 1.0
+    assert result["recall@k"] == 1.0
+    assert result["MRR"] == 0.5

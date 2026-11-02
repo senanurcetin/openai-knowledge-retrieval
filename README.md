@@ -321,6 +321,13 @@ reports retain the original dataset order. Optional external judge/hosted
 OpenAI Evals calls still depend on their own settings and may incur costs.
 Auto-mode dataset generation is unchanged.
 
+The local Markdown QA report uses a timestamped filename (for example,
+`report_20261103_100502.md`). If multiple reports are generated in the same
+second, new files receive `_1`, `_2`, etc.; existing Markdown reports are
+**never overwritten**, including under concurrent local runs. New report
+files use owner-only permissions on filesystems supporting POSIX modes.
+Other fixed-name summary artifacts are refreshed for the latest evaluation.
+
 Every successful curated user-mode run also writes `evals/reports/quality_summary.json`,
 a **raw-text-free** aggregate of the same locally judged answers. It records
 judge pass/fail counts and pass threshold, mean exact match and token F1,

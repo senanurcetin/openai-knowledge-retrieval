@@ -250,9 +250,11 @@ def test_heuristic_never_passes_empty_answers_or_empty_reference(monkeypatch):
     """Even perfectly supporting context cannot make an absent answer correct."""
     with monkeypatch.context() as ctx:
         _setup_common(ctx, [])
+        # Use the production normalizer, not an approximation in test code.
+        from evals.generator.canonicalize import canonicalize_answer
         _module(
             ctx, "evals.generator.canonicalize",
-            canonicalize_answer=lambda value: (value or "").strip().strip(".,:;").lower(),
+            canonicalize_answer=canonicalize_answer,
         )
         _module(ctx, "evals.graders.schema", JudgeDecision=FakeDecision)
         _module(ctx, "evals.graders.judge_prompts", SINGLE_RUBRIC_QA_GROUNDED="test")

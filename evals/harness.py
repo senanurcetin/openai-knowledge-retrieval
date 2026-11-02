@@ -10,7 +10,10 @@ from cli.config import RootConfig
 from evals.datasets.schema import load_and_validate_jsonl
 from evals.metrics.qa import em_f1
 from evals.metrics.retrieval_capture import summarize_captured_retrieval
-from evals.reporters.retrieval_metrics import write_retrieval_reports
+from evals.reporters.retrieval_metrics import (
+    write_retrieval_reports,
+    write_unavailable_retrieval_reports,
+)
 from evals.reporters.quality_summary import summarize_qa_quality
 from evals.reporters import write_markdown_report
 from evals.reporters.html import write_html_report
@@ -135,10 +138,39 @@ def run_evals(cfg: RootConfig, run_ablations: bool = False, config_path: str | N
                     f"({coverage['scored_examples']}/{coverage['total_examples']} scored)"
                 )
             else:
+                write_unavailable_retrieval_reports(
+                    report_dir,
+                    top_k=cfg.evals.retrieval_metrics.top_k,
+                    reason="no_scored_examples",
+                )
                 rprint(
                     "[yellow]No retrieval scores produced[/yellow]: "
-                    "see retrieval_coverage.json for unsupported or missing traces."
+                    "score files now explicitly say 'not_scored'; "
+                    "see retrieval_coverage.json for skipped reasons."
                 )
+        else:
+            # Preserve the original default (no extra files) on a fresh run.
+            # If this directory contains a prior captured evaluation, replace
+            # its metrics/coverage with an explicit disabled status rather
+            # than leaving previous scores appearing current.
+            report_dir = os.path.join("evals", "reports")
+            coverage_path = os.path.join(report_dir, "retrieval_coverage.json")
+            if os.path.isfile(coverage_path):
+                write_unavailable_retrieval_reports(
+                    report_dir,
+                    top_k=cfg.evals.retrieval_metrics.top_k,
+                    reason="capture_disabled",
+                )
+                coverage = {
+                    "status": "capture_disabled",
+                    "total_examples": len(rows),
+                    "scored_examples": 0,
+                    "skipped_examples": len(rows),
+                    "skipped_reasons": {"capture_disabled": len(rows)},
+                }
+                with open(coverage_path, "w", encoding="utf-8") as handle:
+                    json.dump(coverage, handle, indent=2, ensure_ascii=False)
+                    handle.write("\n")
 
         #   2) OpenAI Evals (optional)
         if getattr(cfg.evals.openai_evals, "enabled", True):

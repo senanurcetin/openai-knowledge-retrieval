@@ -87,3 +87,26 @@ def test_invalid_threshold_rejected(threshold):
     judged, scored = _rows()
     with pytest.raises(ValueError, match="pass_threshold"):
         summarize_qa_quality(judged, scored, pass_threshold=threshold)
+
+
+def test_markdown_and_html_show_aggregates_without_raw_source_text(tmp_path):
+    from evals.reporters.md import write_markdown_report
+    from evals.reporters.html import write_html_report
+
+    judged, scored = _rows()
+    quality = summarize_qa_quality(judged, scored, pass_threshold=0.6)
+    md_report = {
+        "project": "synthetic", "num_examples": 4,
+        "avg_latency_ms": 82.5, "avg_em": 0.25, "avg_f1": 0.5,
+        "rows": [], "quality_summary": quality,
+    }
+    markdown = __import__("pathlib").Path(
+        write_markdown_report(md_report, out_dir=str(tmp_path))
+    ).read_text(encoding="utf-8")
+    html_path = tmp_path / "quality.html"
+    write_html_report({"project": "synthetic", "quality_summary": quality}, html_path)
+    html = html_path.read_text(encoding="utf-8")
+    assert "Aggregate quality" in markdown and "P95 (nearest-rank)" in markdown
+    assert "Judge passed but EM &lt; 1: 1" in html
+    assert "P95 latency (nearest-rank): 200 ms" in html
+    assert "sensitive question" not in html + markdown

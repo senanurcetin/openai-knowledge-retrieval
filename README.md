@@ -328,6 +328,22 @@ second, new files receive `_1`, `_2`, etc.; existing Markdown reports are
 files use owner-only permissions on filesystems supporting POSIX modes.
 Other fixed-name summary artifacts are refreshed for the latest evaluation.
 
+### Correlating reports by run ID
+
+Each curated user-mode evaluation receives a new random 32-character hex
+`run_id` once, before the local judging pass. The **same ID** appears in
+`quality_summary.json`, the timestamped QA Markdown report and
+`local_summary.html`. If retrieval capture is enabled, it also appears in
+`retrieval_coverage.json` and `retrieval_metrics.json/.md`, including
+`not_scored` outputs. A later run with capture disabled replaces any
+previous captured output with the **new** run ID and a disabled status.
+
+These identifiers let report consumers detect mixed-run artifacts; they
+do not contain questions, answers, source texts or API credentials.
+Standalone offline JSONL retrieval evaluations also get a fresh run ID.
+Because fixed-name JSON/HTML summaries represent the latest run, retain a
+copy of the desired outputs if a full historical archive is needed.
+
 Every successful curated user-mode run also writes `evals/reports/quality_summary.json`,
 a **raw-text-free** aggregate of the same locally judged answers. It records
 judge pass/fail counts and pass threshold, mean exact match and token F1,

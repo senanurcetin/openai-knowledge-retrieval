@@ -336,7 +336,9 @@ def test_repeated_runs_never_leave_stale_retrieval_scores(monkeypatch, tmp_path)
 
         phase["name"] = "no_retrieval"
         harness.run_evals(_cfg(capture=True))
-        assert json.loads(json_path.read_text(encoding="utf-8")) == {
+        unscored = json.loads(json_path.read_text(encoding="utf-8"))
+        assert "run_id" in unscored
+        assert {key: value for key, value in unscored.items() if key != "run_id"} == {
             "status": "not_scored",
             "reason": "no_scored_examples",
             "top_k": 2,
@@ -429,9 +431,9 @@ def test_harness_run_id_matches_every_artifact_and_rotates_between_runs(
             coverage = json.loads((output / "retrieval_coverage.json").read_text(encoding="utf-8"))
             retrieval = json.loads((output / "retrieval_metrics.json").read_text(encoding="utf-8"))
             retrieval_md = (output / "retrieval_metrics.md").read_text(encoding="utf-8")
-            assert f"Run ID: \`{run_id}\`" in md_content
+            assert f"Run ID: `{run_id}`" in md_content
             assert f"Run ID: {run_id}" in html
-            assert f"Run ID: \`{run_id}\`" in retrieval_md
+            assert f"Run ID: `{run_id}`" in retrieval_md
             assert coverage["run_id"] == retrieval["run_id"] == run_id
             assert "private passage" not in qa_json + retrieval_md
             if capture and state["score"]:

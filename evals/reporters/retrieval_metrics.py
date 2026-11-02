@@ -16,7 +16,7 @@ from evals.reporters.md import _safe_markdown
 
 
 METRIC_KEYS = (
-    "hit@k", "recall@k", "precision@k", "MRR",
+    "hit@k", "recall@k", "precision@k", "MRR", "MRR@k",
     "context_precision", "support_coverage",
 )
 

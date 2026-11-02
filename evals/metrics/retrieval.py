@@ -51,6 +51,15 @@ def mrr(retrieved_doc_ids: List[str], gold_doc_id: str) -> float:
     return 0.0
 
 
+def mrr_at_k(retrieved_doc_ids: List[str], gold_doc_id: str, k: int = 8) -> float:
+    """Reciprocal rank among only the first k returned results.
+
+    Unlike full-list MRR, a gold item below the cutoff receives zero.
+    """
+    _validate_top_k(k)
+    return mrr(retrieved_doc_ids[:k], gold_doc_id)
+
+
 def support_coverage(concatenated_context: str, citation_text: str) -> float:
     if not citation_text:
         return 0.0
@@ -87,6 +96,7 @@ def compute_retrieval_metrics(
         "recall@k": recall_at_k(doc_ids, [gold_doc_id] if gold_doc_id else [], k=top_k),
         "precision@k": precision_at_k(doc_ids, [gold_doc_id] if gold_doc_id else [], k=top_k),
         "MRR": mrr(doc_ids, gold_doc_id or ""),
+        "MRR@k": mrr_at_k(doc_ids, gold_doc_id or "", k=top_k),
         "context_precision": context_precision(concatenated, citation_text),
         "support_coverage": support_coverage(concatenated, citation_text),
     }

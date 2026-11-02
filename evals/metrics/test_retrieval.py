@@ -102,3 +102,28 @@ def test_computed_metrics_include_precision_at_k_without_shifting_unidentified_r
     assert result["hit@k"] == 1.0
     assert result["recall@k"] == 1.0
     assert result["MRR"] == 0.5
+
+
+def test_mrr_at_k_limits_rank_without_altering_full_mrr():
+    from evals.metrics.retrieval import mrr_at_k
+    import pytest
+
+    retrieved = ["unknown", "gold", "gold"]
+    assert mrr_at_k(retrieved, "gold", k=1) == 0.0
+    assert mrr_at_k(retrieved, "gold", k=2) == 0.5
+    assert mrr_at_k([], "gold", k=2) == 0.0
+    assert mrr_at_k(["gold"], "", k=2) == 0.0
+    for invalid in (0, -1, True, 1.5, "2"):
+        with pytest.raises(ValueError, match="positive integer"):
+            mrr_at_k(retrieved, "gold", k=invalid)
+
+    results = [
+        {"doc_id": "unknown", "text": "not relevant"},
+        {"doc_id": "gold", "text": "relevant"},
+    ]
+    top1 = compute_retrieval_metrics(results, "gold", "", top_k=1)
+    top2 = compute_retrieval_metrics(results, "gold", "", top_k=2)
+    assert top1["MRR"] == 0.5
+    assert top1["MRR@k"] == 0.0
+    assert top2["MRR"] == 0.5
+    assert top2["MRR@k"] == 0.5

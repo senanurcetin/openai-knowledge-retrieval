@@ -1,0 +1,35 @@
+name: Offline retrieval evaluation tests
+
+on:
+  pull_request:
+    paths:
+      - 'evals/metrics/**'
+      - 'evals/reporters/**'
+      - '.github/workflows/offline-retrieval-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-retrieval:
+    name: Offline Retrieval / Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install offline test dependency
+        run: python -m pip install 'pytest>=8,<10'
+      - name: Check offline metrics and reports
+        run: >-
+          python -m pytest -q
+          evals/metrics/test_qa.py
+          evals/metrics/test_retrieval.py
+          evals/reporters/test_md.py
+          evals/reporters/test_retrieval_metrics.py

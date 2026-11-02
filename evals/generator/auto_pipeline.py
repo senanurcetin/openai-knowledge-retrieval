@@ -82,7 +82,18 @@ def _quality_gate(rows: List[Dict[str, Any]], cfg: RootConfig) -> List[Dict[str,
     for cit_text, group in by_cit.items():
         regen_ans = regen_map.get(cit_text)
         for r in group:
-            can = canonicalize_answer(r.get("correct_answer", ""))
+            # Reject unusable candidate QA pairs before constructing EvalItem.
+            # An empty canonical answer can otherwise pass the answerability
+            # proxy and abort dataset generation under the stricter schema.
+            question = r.get("question")
+            answer = r.get("correct_answer")
+            if not isinstance(question, str) or not question.strip():
+                continue
+            if not isinstance(answer, str) or not answer.strip():
+                continue
+            can = canonicalize_answer(answer)
+            if not can:
+                continue
             # If we performed regen and answer disagrees, drop.
             if regen_ans and regen_ans and regen_ans != can:
                 continue

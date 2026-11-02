@@ -299,6 +299,16 @@ npm run lint     # eslint + typescript checks
 
 The evaluation harness supports both local grading and hosted OpenAI Evals.
 
+For **curated user-mode datasets**, the local judge generates one answer per
+example. Its ordered answers and latencies are reused for the Markdown EM/F1
+report and (when `retrieval_metrics.capture: true`) the observed retrieval
+metrics; there is no redundant second answer-generation pass. Retrieval traces
+are passed in memory only to metric aggregation, never embedded in local
+judge/HTML rows. Parallel model requests may finish out of order, but all
+reports retain the original dataset order. Optional external judge/hosted
+OpenAI Evals calls still depend on their own settings and may incur costs.
+Auto-mode dataset generation is unchanged.
+
 ### Auto-generated datasets
 
 Set `evals.mode: auto` to synthesize evaluation data from your corpus. The harness:

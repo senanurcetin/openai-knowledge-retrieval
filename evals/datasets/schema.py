@@ -89,10 +89,20 @@ def load_and_validate_jsonl(path: str | Path) -> List[EvalRow]:
     return rows
 
 
-def write_jsonl(rows: Iterable[EvalRow | Dict[str, Any]], path: str | Path) -> None:
+def write_jsonl(
+    rows: Iterable[EvalRow | Dict[str, Any]],
+    path: str | Path,
+    *,
+    exclusive: bool = False,
+) -> None:
+    """Write JSONL, optionally refusing to replace an existing dataset.
+
+    Exclusive creation uses the filesystem's atomic create-if-absent mode.
+    Default overwrite semantics remain available to existing callers.
+    """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("w", encoding="utf-8") as f:
+    with p.open("x" if exclusive else "w", encoding="utf-8") as f:
         for r in rows:
             if isinstance(r, EvalRow):
                 data = r.model_dump()

@@ -78,3 +78,48 @@ def test_sampling_does_not_modify_input_records():
     snapshot = [row.copy() for row in rows]
     sample_by_mix(rows, mix={"easy": 1.0}, total=4)
     assert rows == snapshot
+
+
+
+def test_missing_source_ids_respect_same_source_cap_across_both_phases():
+    rows = [
+        _candidate("unlabeled-first", "easy", source=None),
+        _candidate("unlabeled-second", "medium", source=None),
+        _candidate("unlabeled-third", "hard", source=""),
+        _candidate("labeled", "medium", source="doc-1"),
+    ]
+    chosen = sample_by_mix(
+        rows, mix={"easy": 0.25, "medium": 0.5, "hard": 0.25},
+        total=8, per_source_cap=1,
+    )
+    assert [row["question"] for row in chosen] == [
+        "unlabeled-first", "labeled",
+    ]
+
+
+def test_duplicate_tags_within_one_candidate_consume_one_tag_slot():
+    rows = [
+        _candidate("duplicate-labels", tags=["safety", "safety"], source="doc-1"),
+        _candidate("next-candidate", tags=["safety"], source="doc-2"),
+        _candidate("third-candidate", tags=["safety"], source="doc-3"),
+    ]
+    chosen = sample_by_mix(
+        rows, mix={"easy": 1.0}, total=3, per_tag_cap=2,
+    )
+    assert [row["question"] for row in chosen] == [
+        "duplicate-labels", "next-candidate",
+    ]
+
+
+def test_empty_source_and_duplicate_tags_do_not_mutate_inputs():
+    rows = [
+        _candidate("unlabeled", tags=["a", "a"], source=None),
+        _candidate("another", tags=["a"], source=None),
+    ]
+    before = [(row.copy(), list(row["tags"])) for row in rows]
+    result = sample_by_mix(
+        rows, mix={"easy": 1.0}, total=3,
+        per_source_cap=1, per_tag_cap=2,
+    )
+    assert len(result) == 1
+    assert [(row, row["tags"]) for row in rows] == before

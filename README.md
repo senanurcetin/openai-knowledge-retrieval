@@ -376,6 +376,10 @@ The same candidate is never selected again during the fill phase merely to
 reach `items_target`. Per-source and per-tag caps apply to both phases.
 If the available distinct eligible candidates are insufficient, the dataset
 can have **fewer rows** than the requested target rather than repeating examples.
+When `per_source_cap` is set, all candidates without `source_id` share one
+**unlabeled** quota group; they no longer bypass source balancing. Repeated
+tag values within one candidate consume only one slot per tag, and neither
+rule changes the original candidate records.
 
 ### Curated datasets
 

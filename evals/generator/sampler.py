@@ -35,7 +35,9 @@ def sample_by_mix(
         if index in selected_indexes or len(out) >= total:
             return False
         candidate = items[index]
-        tags = candidate.get("tags") or []
+        # Repeated tags are one label, not multiple quota reservations.
+        tags = tuple(dict.fromkeys(candidate.get("tags") or []))
+        # Unlabeled candidates belong to one explicit quota group.
         source = candidate.get("source_id") or ""
         if any(tag_counts[tag] >= per_tag_cap for tag in tags):
             return False
@@ -46,8 +48,7 @@ def sample_by_mix(
         out.append(candidate)
         for tag in tags:
             tag_counts[tag] += 1
-        if source:
-            source_counts[source] += 1
+        source_counts[source] += 1
         difficulty_counts[normalized_difficulty[index]] += 1
         return True
 

@@ -373,6 +373,20 @@ Switch to `evals.mode: user` and provide `evals.dataset_path`. Each JSONL record
 - `correct_answer`: ideal answer used for EM/F1 scoring (required). Supply substantive nonempty text: blank predictions or blank reference answers receive **EM = 0** and **F1 = 0** rather than a false exact match.
 - Metadata (e.g., `source_id`, `page`, `char_start`, `char_end`, `difficulty`, `tags`).
 
+JSONL records may use either the canonical wrapped form `{"item": {...}}`
+or the legacy flat form `{"id": "...", "question": "...", ...}`. Both
+normalize to an `EvalRow.item`. Do not mix `item` with top-level evaluation
+fields in the same record. Questions and gold answers must contain non-whitespace
+text. If an `id` is provided, it must be nonblank and **unique within the file**;
+rows without IDs remain supported. Invalid rows and duplicate IDs raise
+line-numbered errors **before any model evaluation runs**. Empty
+`citation_text` is accepted when supporting evidence is unavailable but
+may reduce groundedness scoring.
+
+Auto-generated candidate QA pairs with blank questions or answers are filtered
+before JSONL export, so a single unusable generated record does not abort the
+whole generation run.
+
 See `evals/datasets/schema.py` for the full schema; the CLI validates these fields before each run and canonicalizes answers internally for consistent scoring.
 
 ### Mirroring to OpenAI Evals

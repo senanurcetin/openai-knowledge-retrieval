@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -81,6 +82,7 @@ def _quality_gate(rows: List[Dict[str, Any]], cfg: RootConfig) -> List[Dict[str,
 
     for cit_text, group in by_cit.items():
         regen_ans = regen_map.get(cit_text)
+        normalized_citation = canonicalize_answer(cit_text)
         for r in group:
             # Reject unusable candidate QA pairs before constructing EvalItem.
             # An empty canonical answer can otherwise pass the answerability
@@ -95,11 +97,11 @@ def _quality_gate(rows: List[Dict[str, Any]], cfg: RootConfig) -> List[Dict[str,
             if not can:
                 continue
             # If we performed regen and answer disagrees, drop.
-            if regen_ans and regen_ans and regen_ans != can:
+            if regen_ans and regen_ans != can:
                 continue
-            # answerability proxy
-            cit_l = (cit_text or "").lower()
-            if can and (can not in cit_text) and (can not in cit_l):
+            # Apply the *same* unit/text normalization to source and gold,
+            # while requiring a full numeric/word token (24 != 124).
+            if not re.search(rf"(?<!\w){re.escape(can)}(?!\w)", normalized_citation):
                 continue
             out.append(r)
     # dedupe

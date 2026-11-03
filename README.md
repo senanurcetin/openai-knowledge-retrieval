@@ -404,6 +404,12 @@ may reduce groundedness scoring.
 Auto-generated candidate QA pairs with blank questions or answers are filtered
 before JSONL export, so a single unusable generated record does not abort the
 whole generation run.
+The answerability quality gate normalizes **both** the expected answer and
+its citation (including units such as `months` ↔ `mo` and `amperes` ↔ `a`).
+It requires complete numeric/word-token matches; an answer of `24` is not
+accepted solely because the source contains `124`, and `cat` is not accepted
+as a substring of `catalog`. This check remains a lightweight lexical proxy,
+not a substitute for semantic groundedness evaluation.
 
 See `evals/datasets/schema.py` for the full schema; the CLI validates these fields before each run and canonicalizes answers internally for consistent scoring.
 

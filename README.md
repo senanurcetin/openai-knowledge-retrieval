@@ -363,6 +363,12 @@ Set `evals.mode: auto` to synthesize evaluation data from your corpus. The harne
 
 Re-run the command to expand coverage or refresh stale questions.
 
+Automatically generated datasets use timestamped `auto_YYYYMMDD_HHMMSS.jsonl`
+filenames. When two generation runs finish within one second, the later
+artifact receives `_1`, `_2`, etc., and files are created exclusively.
+Previously generated datasets are **never overwritten**; a generated dataset
+path in the run summary always identifies the file from that particular run.
+
 During automatic dataset creation, candidate questions are sampled in a stable
 `easy` → `medium` → `hard` order to satisfy the configured difficulty
 mix, then remaining slots are filled from **not-yet-selected** candidates.

@@ -117,6 +117,22 @@ def _quality_gate(rows: List[Dict[str, Any]], cfg: RootConfig) -> List[Dict[str,
     return deduped
 
 
+def _write_auto_dataset(
+    rows: List[EvalRow], *, output_dir: Path = Path("evals") / "datasets"
+) -> Path:
+    """Atomically create a uniquely named generated dataset, never overwrite."""
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    for suffix in range(1000):
+        filename = f"auto_{timestamp}{'_' + str(suffix) if suffix else ''}.jsonl"
+        destination = Path(output_dir) / filename
+        try:
+            write_jsonl(rows, destination, exclusive=True)
+        except FileExistsError:
+            continue
+        return destination
+    raise FileExistsError("Too many auto-generated datasets in one second")
+
+
 def auto_generate_dataset(cfg: RootConfig) -> Tuple[AutoGenSummary, List[EvalRow]]:
     # 1) Iterate corpus
     scan_docs = getattr(cfg.evals.auto, "scan_docs", None)
@@ -202,10 +218,8 @@ def auto_generate_dataset(cfg: RootConfig) -> Tuple[AutoGenSummary, List[EvalRow
         )
         eval_rows.append(EvalRow(item=item))
 
-    # 7) Write JSONL
-    ts = time.strftime("%Y%m%d_%H%M%S")
-    out_path = Path("evals") / "datasets" / f"auto_{ts}.jsonl"
-    write_jsonl(eval_rows, out_path)
+    # 7) Persist a new dataset without replacing one from a parallel run.
+    out_path = _write_auto_dataset(eval_rows)
 
     summary = AutoGenSummary(
         total_chunks=len(chunks),

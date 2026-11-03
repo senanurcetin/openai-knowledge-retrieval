@@ -363,6 +363,14 @@ Set `evals.mode: auto` to synthesize evaluation data from your corpus. The harne
 
 Re-run the command to expand coverage or refresh stale questions.
 
+During automatic dataset creation, candidate questions are sampled in a stable
+`easy` → `medium` → `hard` order to satisfy the configured difficulty
+mix, then remaining slots are filled from **not-yet-selected** candidates.
+The same candidate is never selected again during the fill phase merely to
+reach `items_target`. Per-source and per-tag caps apply to both phases.
+If the available distinct eligible candidates are insufficient, the dataset
+can have **fewer rows** than the requested target rather than repeating examples.
+
 ### Curated datasets
 
 Switch to `evals.mode: user` and provide `evals.dataset_path`. Each JSONL record should include:

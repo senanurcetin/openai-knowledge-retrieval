@@ -11,52 +11,56 @@ def sample_by_mix(
     total: int = 150,
     per_source_cap: int | None = None,
 ) -> List[Dict[str, Any]]:
-    """Sample items by difficulty mix and tag cap.
+    """Sample unique input candidates by difficulty, enforcing caps in both passes.
 
-    Simple round-robin sampling honoring per-tag caps.
+    The target pass uses a stable easy/medium/hard order. The fill pass
+    considers remaining original input slots only; it never selects an
+    already sampled candidate again merely to reach the requested total.
     """
-    buckets: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-    for it in items:
-        buckets[(it.get("difficulty") or "easy").lower()].append(it)
+    difficulties = ("easy", "medium", "hard")
+    buckets: Dict[str, List[int]] = defaultdict(list)
+    normalized_difficulty: list[str] = []
+    for idx, candidate in enumerate(items):
+        difficulty = (candidate.get("difficulty") or "easy").lower()
+        normalized_difficulty.append(difficulty)
+        buckets[difficulty].append(idx)
+
     out: List[Dict[str, Any]] = []
+    selected_indexes: set[int] = set()
     tag_counts: Dict[str, int] = defaultdict(int)
     source_counts: Dict[str, int] = defaultdict(int)
-    # target per difficulty
-    targets = {k: int(total * mix.get(k, 0.0)) for k in {"easy", "medium", "hard"}}
-    for diff, target in targets.items():
-        pool = buckets.get(diff, [])
-        i = 0
-        while (
-            i < len(pool)
-            and len(out) < total
-            and sum(1 for x in out if x.get("difficulty") == diff) < target
-        ):
-            cand = pool[i]
-            tags = cand.get("tags") or []
-            src = cand.get("source_id") or ""
-            if all(tag_counts[t] < per_tag_cap for t in tags) and (
-                per_source_cap is None or source_counts[src] < per_source_cap
-            ):
-                out.append(cand)
-                for t in tags:
-                    tag_counts[t] += 1
-                if src:
-                    source_counts[src] += 1
-            i += 1
-    # Fill any remaining slots
-    if len(out) < total:
-        rest = [it for lst in buckets.values() for it in lst]
-        for cand in rest:
-            if len(out) >= total:
+    difficulty_counts: Dict[str, int] = defaultdict(int)
+
+    def select(index: int) -> bool:
+        if index in selected_indexes or len(out) >= total:
+            return False
+        candidate = items[index]
+        tags = candidate.get("tags") or []
+        source = candidate.get("source_id") or ""
+        if any(tag_counts[tag] >= per_tag_cap for tag in tags):
+            return False
+        if per_source_cap is not None and source_counts[source] >= per_source_cap:
+            return False
+
+        selected_indexes.add(index)
+        out.append(candidate)
+        for tag in tags:
+            tag_counts[tag] += 1
+        if source:
+            source_counts[source] += 1
+        difficulty_counts[normalized_difficulty[index]] += 1
+        return True
+
+    targets = {diff: int(total * mix.get(diff, 0.0)) for diff in difficulties}
+    for difficulty in difficulties:
+        for index in buckets.get(difficulty, []):
+            if len(out) >= total or difficulty_counts[difficulty] >= targets[difficulty]:
                 break
-            tags = cand.get("tags") or []
-            src = cand.get("source_id") or ""
-            if all(tag_counts[t] < per_tag_cap for t in tags) and (
-                per_source_cap is None or source_counts[src] < per_source_cap
-            ):
-                out.append(cand)
-                for t in tags:
-                    tag_counts[t] += 1
-                if src:
-                    source_counts[src] += 1
-    return out[:total]
+            select(index)
+
+    # Fill unallocated slots without replaying candidates from the first pass.
+    for index in range(len(items)):
+        if len(out) >= total:
+            break
+        select(index)
+    return out
